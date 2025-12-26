@@ -1,0 +1,9 @@
+services:
+  claude-relay-service:
+    container_name: crs
+    image: ghcr.io/seasejemma/claude-relay-service:latest
+
+networks:
+  default:
+    name: webproxy
+    external: true
