@@ -74,6 +74,3 @@ azure-pipelines.yml
 # package-lock.json  # 需要保留此文件以支持 npm ci
 yarn.lock
 pnpm-lock.yaml
-
-# CLI
-cli/
