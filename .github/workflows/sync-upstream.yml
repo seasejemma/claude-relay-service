@@ -1,0 +1,71 @@
+name: Sync Upstream
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Add upstream remote
+        run: |
+          git remote add upstream https://github.com/Wei-Shaw/claude-relay-service.git || true
+          git fetch upstream --tags --force
+
+      - name: Sync main branch
+        run: |
+          git checkout main
+          git merge upstream/main --no-edit || true
+          # Remove upstream workflows that cause issues in fork
+          if [ -f ".github/workflows/auto-release-pipeline.yml" ]; then
+            git rm .github/workflows/auto-release-pipeline.yml
+            git commit -m "Remove auto-release-pipeline.yml from fork" || true
+          fi
+          git push origin main || true
+
+      - name: Push new tags and trigger build
+        run: |
+          # Push any tags that exist upstream but not in origin
+          git tag -l 'v*' | while read tag; do
+            if ! git ls-remote --tags origin | grep -q "refs/tags/$tag$"; then
+              echo "Pushing new tag: $tag"
+              git push origin "$tag" || true
+            fi
+          done
+
+          # Get latest upstream tag
+          LATEST_TAG=$(git tag -l 'v*' --sort=-v:refname | head -1)
+          if [ -z "$LATEST_TAG" ]; then
+            echo "No tags found"
+            exit 0
+          fi
+
+          # Check if image exists in ghcr.io (strip v prefix for image tag)
+          VERSION="${LATEST_TAG#v}"
+          IMAGE="ghcr.io/${{ github.repository }}:${VERSION}"
+
+          if docker manifest inspect "$IMAGE" > /dev/null 2>&1; then
+            echo "Image $IMAGE already exists, skipping build"
+          else
+            echo "Image $IMAGE not found, triggering build for $LATEST_TAG"
+            gh workflow run ghcr-hardened.yml -R ${{ github.repository }} -f tag="$LATEST_TAG"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
