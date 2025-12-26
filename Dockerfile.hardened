@@ -1,0 +1,77 @@
+# Hardened Dockerfile for claude-relay-service
+# Uses Docker Hardened Images (dhi.io) for enhanced security
+# Multi-stage build: Node 20 LTS
+
+# =============================================================================
+# Stage 1: Backend Dependencies
+# =============================================================================
+FROM dhi.io/node:20-dev AS backend-deps
+
+WORKDIR /app
+
+COPY package*.json ./
+
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci --only=production
+
+# =============================================================================
+# Stage 2: Frontend Build
+# =============================================================================
+FROM dhi.io/node:20-dev AS frontend-builder
+
+WORKDIR /app/web/admin-spa
+
+COPY web/admin-spa/package*.json ./
+
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci
+
+COPY web/admin-spa/ ./
+
+RUN npm run build
+
+# =============================================================================
+# Stage 3: Production Runtime (Hardened)
+# =============================================================================
+FROM dhi.io/node:20-dev AS runtime
+
+WORKDIR /app
+
+# Copy package files for version info
+COPY package*.json ./
+
+# Copy production dependencies from backend-deps stage
+COPY --from=backend-deps /app/node_modules ./node_modules
+
+# Copy application source
+COPY src/ ./src/
+COPY config/ ./config/
+COPY scripts/ ./scripts/
+COPY cli/ ./cli/
+COPY resources/ ./resources/
+COPY nodemon.json ./
+
+# Copy frontend build artifacts
+COPY --from=frontend-builder /app/web/admin-spa/dist ./web/admin-spa/dist
+
+# Copy and set entrypoint permissions
+COPY docker-entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
+# Create necessary directories
+RUN mkdir -p logs data temp
+
+# Pre-create config file if template exists
+RUN if [ -f "/app/config/config.example.js" ]; then \
+      cp /app/config/config.example.js /app/config/config.js; \
+    fi
+
+# Expose application port
+EXPOSE 3000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD node -e "require('http').get('http://localhost:3000/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"
+
+ENTRYPOINT ["docker-entrypoint.sh"]
+CMD ["node", "src/app.js"]
