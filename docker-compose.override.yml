@@ -1,7 +1,27 @@
 services:
-  claude-relay-service:
+  claude-relay:
     container_name: crs
     image: ghcr.io/seasejemma/claude-relay-service:latest
+    environment:
+      - JWT_SECRET=${CRS__JWT_SECRET}
+      - ENCRYPTION_KEY=${CRS__ENCRYPTION_KEY}
+      - ADMIN_USERNAME=${CRS__ADMIN_USERNAME}
+      - ADMIN_PASSWORD=${CRS__ADMIN_PASSWORD}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    volumes:
+      - crs_data:/app/data
+      - crs_logs:/app/logs
+
+  redis:
+    container_name: crs-redis
+    volumes:
+      - crs_redis_data:/data
+
+volumes:
+  crs_redis_data:
+  crs_logs:
+  crs_data:
 
 networks:
   default:
