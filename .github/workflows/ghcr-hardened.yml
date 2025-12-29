@@ -1,4 +1,4 @@
-name: Build Hardened Image
+name: Build Hardened Image to GHCR
 
 on:
   push:
@@ -11,6 +11,10 @@ on:
         required: false
         type: string
 
+concurrency:
+  group: build-${{ github.event.inputs.tag || github.ref }}
+  cancel-in-progress: false
+
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
@@ -19,7 +23,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       packages: write
 
     steps:

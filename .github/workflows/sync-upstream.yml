@@ -5,6 +5,10 @@ on:
     - cron: '*/30 * * * *'
   workflow_dispatch:
 
+concurrency:
+  group: sync-upstream
+  cancel-in-progress: true
+
 jobs:
   sync:
     runs-on: ubuntu-latest
@@ -17,7 +21,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-tags: true
 
       - name: Configure Git
         run: |
@@ -32,13 +36,19 @@ jobs:
       - name: Sync main branch
         run: |
           git checkout main
-          git merge upstream/main --no-edit || true
-          # Remove upstream workflows that cause issues in fork
-          if [ -f ".github/workflows/auto-release-pipeline.yml" ]; then
-            git rm .github/workflows/auto-release-pipeline.yml
-            git commit -m "Remove auto-release-pipeline.yml from fork" || true
-          fi
-          git push origin main || true
+          git merge upstream/main --no-edit || echo "No changes or conflicts to resolve"
+          
+          # Remove upstream workflows to prevent conflicts
+          rm -f .github/workflows/auto-release-pipeline.yml
+          
+          # Commit removals if any changes
+          git add -A
+          git diff --cached --quiet || git commit -m "chore: remove upstream workflows"
+          
+          git push origin main || echo "Nothing to push"
+
+      - name: Log in to GHCR for manifest check
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
       - name: Push new tags and trigger build
         run: |
@@ -57,9 +67,12 @@ jobs:
             exit 0
           fi
 
-          # Check if image exists in ghcr.io (strip v prefix for image tag)
+          # Check if image exists in ghcr.io
+          # GHCR requires lowercase image names
+          REPO_LOWER=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          # CRS images use semver without v prefix (e.g., 1.1.249)
           VERSION="${LATEST_TAG#v}"
-          IMAGE="ghcr.io/${{ github.repository }}:${VERSION}"
+          IMAGE="ghcr.io/${REPO_LOWER}:${VERSION}"
 
           if docker manifest inspect "$IMAGE" > /dev/null 2>&1; then
             echo "Image $IMAGE already exists, skipping build"
