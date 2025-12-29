@@ -95,14 +95,7 @@ jobs:
           else
             gh release create "$TAG" \
               --title "Release $VERSION" \
-              --notes "Hardened Docker image build
-
-**Docker Image:**
-\`\`\`
-docker pull ghcr.io/${{ github.repository }}:${VERSION}
-\`\`\`
-
-**Changes:** See [upstream changelog](https://github.com/Wei-Shaw/claude-relay-service/releases/tag/$TAG)"
+              --notes "Hardened Docker image build. Image: ghcr.io/${{ github.repository }}:${VERSION}. See upstream: https://github.com/Wei-Shaw/claude-relay-service/releases/tag/$TAG"
           fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
