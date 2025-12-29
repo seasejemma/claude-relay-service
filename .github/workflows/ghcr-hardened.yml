@@ -1,4 +1,4 @@
-name: Build Hardened Image to GHCR
+name: Build Hardened Image (GHCR)
 
 on:
   push:
