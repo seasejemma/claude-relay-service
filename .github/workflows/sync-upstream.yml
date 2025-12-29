@@ -78,7 +78,7 @@ jobs:
             echo "Image $IMAGE already exists, skipping build"
           else
             echo "Image $IMAGE not found, triggering build for $LATEST_TAG"
-            gh workflow run ghcr-hardened.yml -R ${{ github.repository }} -f tag="$LATEST_TAG"
+            gh workflow run build-hardened.yml -R ${{ github.repository }} -f tag="$LATEST_TAG"
           fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
