@@ -1,4 +1,5 @@
 name: Build Hardened Image (GHCR)
+# Builds hardened Docker image to GHCR
 
 on:
   push:
